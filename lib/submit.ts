@@ -67,15 +67,17 @@ export async function submitLecture({
     return;
   }
 
-  // Non-OK response: read the error message if present (Requirements 5.5, 10.4).
-  let message = GENERIC_ERROR_MESSAGE;
+  // Non-OK response: surface the actual server error. Read `{ error }` from the
+  // response JSON; if the body is not JSON or has no error, fall back to a
+  // message that still includes the HTTP status so the failure is never silent.
+  let message = `${GENERIC_ERROR_MESSAGE} (HTTP ${response.status})`;
   try {
     const data = (await response.json()) as { error?: string };
     if (data.error && data.error.trim().length > 0) {
       message = data.error;
     }
   } catch {
-    // keep generic message
+    // Non-JSON body (e.g. an HTML error page): keep the status-based message.
   }
   dispatch({ type: "ERROR", message });
 }

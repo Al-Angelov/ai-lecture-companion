@@ -20,6 +20,24 @@ export interface PipelineError {
   body: { error: string; code: ProcessErrorCode };
 }
 
+/**
+ * Extracts a human-readable message from an unknown thrown value, with the API
+ * key redacted so it can never leak into a response (Property 9). Upstream
+ * error text is otherwise surfaced verbatim to aid debugging.
+ */
+function errorMessage(err: unknown, apiKey?: string): string {
+  let msg: string;
+  if (err instanceof Error && err.message) msg = err.message;
+  else if (typeof err === "string" && err.length > 0) msg = err;
+  else msg = "Unknown error occurred";
+
+  if (apiKey && apiKey.trim().length > 0) {
+    // Redact the credential anywhere it might appear in an upstream message.
+    msg = msg.split(apiKey).join("[REDACTED]");
+  }
+  return msg;
+}
+
 export type PipelineResult = PipelineSuccess | PipelineError;
 
 export interface PipelineDeps {
@@ -67,51 +85,63 @@ export async function runProcessPipeline(
   const hasAudio = audio !== null;
   const hasSlides = slides !== null;
 
-  // 3. Transcription — only when audio is present. If audio is missing, the
-  // transcript is an empty string and the Whisper call is skipped entirely.
+  // 3. Transcription — only when audio is present. Null-safety: when audio is
+  // missing the transcript is an empty string and Whisper is skipped entirely.
   let transcript = "";
   if (hasAudio) {
     try {
       transcript = await pipeline.transcribe(audio);
-    } catch {
+    } catch (err) {
+      // Surface the actual upstream message instead of a static string.
       return {
         status: 502,
         body: {
-          error: "Transcription failed",
+          error: `Transcription failed: ${errorMessage(err, deps.apiKey)}`,
           code: "TRANSCRIPTION_FAILED",
         },
       };
     }
   }
 
-  // 4. Extract slide material — only when a PDF is present. If it is missing,
+  // 4. Extract slide material — only when a PDF is present. When it is missing,
   // the slide content is empty and PDF extraction is skipped entirely.
   let material: SlideMaterial = { text: "", pageImages: [] };
   if (hasSlides) {
     const extractSlides = deps.extractSlides ?? defaultExtractSlides;
     try {
       material = await extractSlides(slides);
-    } catch {
-      // Extraction failure routes through the synthesis-failed contract.
+    } catch (err) {
+      // A real extraction error (corrupt/encrypted PDF, parser failure) now
+      // carries its actual cause rather than being flattened to "Synthesis
+      // failed".
       return {
         status: 502,
-        body: { error: "Synthesis failed", code: "SYNTHESIS_FAILED" },
+        body: {
+          error: `Synthesis failed: ${errorMessage(err, deps.apiKey)}`,
+          code: "SYNTHESIS_FAILED",
+        },
       };
     }
 
-    // A PDF was provided but produced nothing usable (no text and no images).
-    // Route through the synthesis-failed path so the client gets the defined
-    // error contract rather than an empty synthesis.
+    // A PDF was provided but produced nothing usable (no text and no images):
+    // e.g. an image-only/scanned PDF with no extractable text and no image
+    // renderer configured. Say so explicitly.
     if (isSlideMaterialEmpty(material)) {
       return {
         status: 502,
-        body: { error: "Synthesis failed", code: "SYNTHESIS_FAILED" },
+        body: {
+          error:
+            "Synthesis failed: No text could be extracted from the PDF. " +
+            "It may be image-only or scanned; try a PDF with selectable text.",
+          code: "SYNTHESIS_FAILED",
+        },
       };
     }
   }
 
-  // 5. Synthesis (Property 10: error -> 502). The system prompt and user
-  // content are built dynamically from whichever inputs were provided.
+  // 5. Synthesis. The system prompt and user content are built dynamically from
+  // whichever inputs were provided (the message array never carries an empty
+  // transcript section when audio is absent).
   let studyGuide: string;
   try {
     studyGuide = await pipeline.synthesize({
@@ -120,10 +150,13 @@ export async function runProcessPipeline(
       hasAudio,
       hasSlides,
     });
-  } catch {
+  } catch (err) {
     return {
       status: 502,
-      body: { error: "Synthesis failed", code: "SYNTHESIS_FAILED" },
+      body: {
+        error: `Synthesis failed: ${errorMessage(err, deps.apiKey)}`,
+        code: "SYNTHESIS_FAILED",
+      },
     };
   }
 

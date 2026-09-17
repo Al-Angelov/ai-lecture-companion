@@ -34,15 +34,14 @@ describe("extractSlideMaterial", () => {
     expect(isSlideMaterialEmpty(material)).toBe(false);
   });
 
-  it("tolerates a text-extraction failure and falls back to empty text", async () => {
-    const material = await extractSlideMaterial(EMPTY_BYTES, {
-      extractText: async () => {
-        throw new Error("parse failure");
-      },
-    });
-    expect(material.text).toBe("");
-    expect(material.pageImages).toEqual([]);
-    expect(isSlideMaterialEmpty(material)).toBe(true);
+  it("propagates a text-extraction failure with a descriptive message (no swallowing)", async () => {
+    await expect(
+      extractSlideMaterial(EMPTY_BYTES, {
+        extractText: async () => {
+          throw new Error("Invalid PDF structure");
+        },
+      }),
+    ).rejects.toThrow(/PDF text extraction failed: Invalid PDF structure/);
   });
 
   it("tolerates an image-rendering failure without losing text", async () => {

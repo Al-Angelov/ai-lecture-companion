@@ -12,20 +12,46 @@ import { createOpenAIPipeline } from "@/lib/server/openai";
 export const runtime = "nodejs";
 
 export async function POST(request: Request): Promise<Response> {
-  let formData: FormData;
+  // Wrap the entire processing pipeline so no unexpected error escapes as an
+  // opaque runtime crash. Mapped stage errors (400/502/503) are returned by the
+  // pipeline itself; anything unexpected is logged and returned as a 500 with
+  // its actual message.
   try {
-    formData = await request.formData();
-  } catch {
-    return NextResponse.json(
-      { error: "A valid multipart form-data request is required.", code: "MISSING_AUDIO" },
-      { status: 400 },
-    );
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch {
+      return NextResponse.json(
+        {
+          error: "A valid multipart form-data request is required.",
+          code: "MISSING_FILES",
+        },
+        { status: 400 },
+      );
+    }
+
+    const result = await runProcessPipeline(formData, {
+      apiKey: process.env.OPENAI_API_KEY,
+      createPipeline: createOpenAIPipeline,
+    });
+
+    return NextResponse.json(result.body, { status: result.status });
+  } catch (error) {
+    // Log the exact error object to the server terminal for debugging.
+    console.error("[/api/process] Unhandled pipeline error:", error);
+
+    let message =
+      error instanceof Error && error.message
+        ? error.message
+        : "Unknown error occurred";
+
+    // Never leak the credential into a response, even in an unexpected error
+    // (Property 9).
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (apiKey && apiKey.trim().length > 0) {
+      message = message.split(apiKey).join("[REDACTED]");
+    }
+
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const result = await runProcessPipeline(formData, {
-    apiKey: process.env.OPENAI_API_KEY,
-    createPipeline: createOpenAIPipeline,
-  });
-
-  return NextResponse.json(result.body, { status: result.status });
 }

@@ -385,7 +385,7 @@ describe("Process_API pipeline behavior", () => {
     expect(spy.synthesize).toHaveBeenCalledTimes(1);
   });
 
-  it("routes empty slide extraction to the synthesis-failed contract (Requirement 8.5)", async () => {
+  it("routes empty slide extraction to a descriptive synthesis-failed error (Requirement 8.5)", async () => {
     const spy = makeSpyPipeline();
     const fd = makeFormData({
       audio: makeFile("lecture.mp3", 10),
@@ -398,8 +398,57 @@ describe("Process_API pipeline behavior", () => {
     const result = await runProcessPipeline(fd, deps);
     expect(result.status).toBe(502);
     expect(result.body).toMatchObject({ code: "SYNTHESIS_FAILED" });
+    // The message explains the cause rather than being a bare "Synthesis failed".
+    expect(result.body.error).toContain("No text could be extracted");
     // Synthesis is never attempted when material is unusable.
     expect(spy.synthesize).not.toHaveBeenCalled();
+  });
+
+  it("surfaces the real cause when PDF extraction throws (Requirement: error surfacing)", async () => {
+    const spy = makeSpyPipeline();
+    const fd = makeFormData({ slides: makeFile("deck.pdf", 10) });
+    const deps = depsWith(VALID_KEY, spy, async () => {
+      throw new Error("PDF text extraction failed: Invalid PDF structure");
+    });
+    const result = await runProcessPipeline(fd, deps);
+    expect(result.status).toBe(502);
+    expect(result.body).toMatchObject({ code: "SYNTHESIS_FAILED" });
+    expect(result.body.error).toContain("Invalid PDF structure");
+    expect(spy.synthesize).not.toHaveBeenCalled();
+  });
+
+  it("surfaces the real cause when transcription throws", async () => {
+    const spy = makeSpyPipeline({
+      transcribe: async () => {
+        throw new Error("Whisper 413: file too large");
+      },
+    });
+    const fd = makeFormData({ audio: makeFile("lecture.mp3", 10) });
+    const result = await runProcessPipeline(fd, depsWith(VALID_KEY, spy));
+    expect(result.status).toBe(502);
+    expect(result.body).toMatchObject({ code: "TRANSCRIPTION_FAILED" });
+    expect(result.body.error).toContain("file too large");
+  });
+
+  it("surfaces the real cause when synthesis throws", async () => {
+    const spy = makeSpyPipeline({
+      transcribe: async () => "t",
+      synthesize: async () => {
+        throw new Error("gpt-4o 429: rate limited");
+      },
+    });
+    const fd = makeFormData({
+      audio: makeFile("lecture.mp3", 10),
+      slides: makeFile("deck.pdf", 10),
+    });
+    const deps = depsWith(VALID_KEY, spy, async () => ({
+      text: "slide text",
+      pageImages: [],
+    }));
+    const result = await runProcessPipeline(fd, deps);
+    expect(result.status).toBe(502);
+    expect(result.body).toMatchObject({ code: "SYNTHESIS_FAILED" });
+    expect(result.body.error).toContain("rate limited");
   });
 
   it("proceeds with text-only slide material (image channel absent)", async () => {

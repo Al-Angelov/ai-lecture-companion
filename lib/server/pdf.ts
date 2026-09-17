@@ -29,11 +29,17 @@ export async function extractSlideMaterial(
 ): Promise<SlideMaterial> {
   const extractText = deps.extractText ?? defaultExtractText;
 
-  let pages: string[] = [];
+  // Text extraction is the guaranteed channel. If the PDF cannot be parsed at
+  // all (corrupt, encrypted, wrong bytes), we must NOT silently swallow the
+  // error into an empty result — that hides the real cause behind a generic
+  // "Synthesis failed". Instead, propagate a descriptive error the route can
+  // log and surface to the user.
+  let pages: string[];
   try {
     pages = await extractText(pdfBytes);
-  } catch {
-    pages = [];
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(`PDF text extraction failed: ${detail}`);
   }
 
   const text = pages
@@ -44,6 +50,8 @@ export async function extractSlideMaterial(
     .filter((s) => s.length > 0)
     .join("\n\n");
 
+  // Image rendering remains best-effort: a canvas backend may be absent, and
+  // that should not fail the whole request when text was extracted.
   let pageImages: string[] = [];
   if (deps.renderImages) {
     try {

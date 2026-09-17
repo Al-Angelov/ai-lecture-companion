@@ -4,12 +4,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // configurable per test via the module-level `mockPipeline` object.
 const transcribeMock = vi.fn();
 const synthesizeMock = vi.fn();
+// When set, createOpenAIPipeline throws this to simulate an unexpected error
+// that escapes the pipeline's internal stage guards (exercises the route's
+// outer try/catch → 500).
+let factoryError: Error | null = null;
 
 vi.mock("@/lib/server/openai", () => ({
-  createOpenAIPipeline: () => ({
-    transcribe: transcribeMock,
-    synthesize: synthesizeMock,
-  }),
+  createOpenAIPipeline: () => {
+    if (factoryError) throw factoryError;
+    return {
+      transcribe: transcribeMock,
+      synthesize: synthesizeMock,
+    };
+  },
 }));
 
 // Mock PDF extraction so a fake .pdf byte blob yields usable slide material
@@ -54,6 +61,7 @@ const ORIGINAL_ENV = process.env.OPENAI_API_KEY;
 beforeEach(() => {
   transcribeMock.mockReset();
   synthesizeMock.mockReset();
+  factoryError = null;
   process.env.OPENAI_API_KEY = "sk-integration-test-key";
 });
 
@@ -102,7 +110,7 @@ describe("POST /api/process integration (mocked upstream)", () => {
     expect(synthesizeMock).not.toHaveBeenCalled();
   });
 
-  it("synthesis failure returns 502 SYNTHESIS_FAILED (Requirement 8.5)", async () => {
+  it("synthesis failure returns 502 SYNTHESIS_FAILED and surfaces the real cause (Requirement 8.5)", async () => {
     transcribeMock.mockResolvedValue("the transcript");
     synthesizeMock.mockRejectedValue(new Error("gpt-4o down"));
 
@@ -116,6 +124,8 @@ describe("POST /api/process integration (mocked upstream)", () => {
     expect(res.status).toBe(502);
     const body = await res.json();
     expect(body).toMatchObject({ code: "SYNTHESIS_FAILED" });
+    // The actual upstream cause is surfaced, not a bare "Synthesis failed".
+    expect(body.error).toContain("gpt-4o down");
   });
 
   it("pdf-only returns 200 and skips Whisper", async () => {
@@ -167,5 +177,26 @@ describe("POST /api/process integration (mocked upstream)", () => {
     const body = await res.json();
     expect(body).toMatchObject({ code: "SERVICE_UNAVAILABLE" });
     expect(transcribeMock).not.toHaveBeenCalled();
+  });
+
+  it("unexpected error is logged and returned as 500 { error } (try/catch failsafe)", async () => {
+    // Force an error that escapes the pipeline's internal stage guards.
+    factoryError = new Error("Unexpected boom in client init");
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await POST(
+      makeRequest({
+        audio: makeFile("lecture.mp3"),
+        slides: makeFile("deck.pdf"),
+      }),
+    );
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body).toEqual({ error: "Unexpected boom in client init" });
+    // The exact error was logged to the server terminal.
+    expect(errorSpy).toHaveBeenCalled();
+
+    errorSpy.mockRestore();
   });
 });
