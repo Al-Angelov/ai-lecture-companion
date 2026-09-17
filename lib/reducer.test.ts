@@ -73,11 +73,14 @@ describe("processingReducer forward-only guarantee", () => {
             expect(prevOrd).toBeGreaterThanOrEqual(0);
             expect(nextOrd).toBeGreaterThanOrEqual(0);
 
-            // Monotonic: never decreases.
+            // Monotonic: never decreases (forward-only).
             expect(nextOrd).toBeGreaterThanOrEqual(prevOrd);
 
-            // No skipping: an actual advance moves exactly one stage forward.
-            if (nextOrd > prevOrd) {
+            // No skipping for the intermediate ADVANCE_* transitions: each moves
+            // exactly one stage forward. COMPLETE may legally jump from any
+            // active stage (a stage can have no work when a file is absent), so
+            // it is exempt from the single-step rule but still moves forward.
+            if (nextOrd > prevOrd && action.type !== "COMPLETE") {
               expect(nextOrd - prevOrd).toBe(1);
             }
           }

@@ -9,8 +9,9 @@ import {
 import { getExtension } from "@/lib/validation";
 
 export interface ValidatedFiles {
-  audio: File;
-  slides: File;
+  // Either channel may be absent; a valid request has at least one present.
+  audio: File | null;
+  slides: File | null;
 }
 
 export interface RequestValidationSuccess {
@@ -41,9 +42,11 @@ function isFile(value: FormDataEntryValue | null): value is File {
 }
 
 /**
- * Validates that the FormData carries exactly one audio and one slides file,
- * each with an accepted extension and within its size limit. Returns a specific
- * ProcessErrorCode on the first failed constraint. (Requirements 7.1, 7.2, 10.1)
+ * Validates that the FormData carries at least one of `audio`/`slides`, and
+ * that whichever file(s) are present have an accepted extension and are within
+ * their size limit. Returns a specific ProcessErrorCode on the first failed
+ * constraint, or MISSING_FILES (400) when both files are absent.
+ * (Requirements 7.1, 7.2, 10.1; revised for either/or inputs.)
  */
 export function validateProcessRequest(
   formData: FormData,
@@ -51,56 +54,54 @@ export function validateProcessRequest(
   const audioEntry = formData.get("audio");
   const slidesEntry = formData.get("slides");
 
-  if (!isFile(audioEntry)) {
+  const audio = isFile(audioEntry) ? audioEntry : null;
+  const slides = isFile(slidesEntry) ? slidesEntry : null;
+
+  // Failsafe: at least one file must be provided.
+  if (!audio && !slides) {
     return {
       ok: false,
-      error: "An audio file is required.",
-      code: "MISSING_AUDIO",
-    };
-  }
-  if (!isFile(slidesEntry)) {
-    return {
-      ok: false,
-      error: "A slides file is required.",
-      code: "MISSING_SLIDES",
+      error: "Provide at least one file: a lecture audio file or a slides PDF.",
+      code: "MISSING_FILES",
     };
   }
 
-  const audio = audioEntry;
-  const slides = slidesEntry;
+  // Validate the audio channel only when present.
+  if (audio) {
+    const audioExt = getExtension(audio.name);
+    if (!AUDIO_CONFIG.acceptedExtensions.includes(audioExt)) {
+      return {
+        ok: false,
+        error: AUDIO_CONFIG.wrongFormatMessage,
+        code: "INVALID_AUDIO_FORMAT",
+      };
+    }
+    if (audio.size > AUDIO_CONFIG.maxSizeBytes) {
+      return {
+        ok: false,
+        error: AUDIO_CONFIG.oversizeMessage,
+        code: "AUDIO_TOO_LARGE",
+      };
+    }
+  }
 
-  // Audio format then size.
-  const audioExt = getExtension(audio.name);
-  if (!AUDIO_CONFIG.acceptedExtensions.includes(audioExt)) {
-    return {
-      ok: false,
-      error: AUDIO_CONFIG.wrongFormatMessage,
-      code: "INVALID_AUDIO_FORMAT",
-    };
-  }
-  if (audio.size > AUDIO_CONFIG.maxSizeBytes) {
-    return {
-      ok: false,
-      error: AUDIO_CONFIG.oversizeMessage,
-      code: "AUDIO_TOO_LARGE",
-    };
-  }
-
-  // Slides format then size.
-  const slidesExt = getExtension(slides.name);
-  if (!SLIDES_CONFIG.acceptedExtensions.includes(slidesExt)) {
-    return {
-      ok: false,
-      error: SLIDES_CONFIG.wrongFormatMessage,
-      code: "INVALID_SLIDES_FORMAT",
-    };
-  }
-  if (slides.size > SLIDES_CONFIG.maxSizeBytes) {
-    return {
-      ok: false,
-      error: SLIDES_CONFIG.oversizeMessage,
-      code: "SLIDES_TOO_LARGE",
-    };
+  // Validate the slides channel only when present.
+  if (slides) {
+    const slidesExt = getExtension(slides.name);
+    if (!SLIDES_CONFIG.acceptedExtensions.includes(slidesExt)) {
+      return {
+        ok: false,
+        error: SLIDES_CONFIG.wrongFormatMessage,
+        code: "INVALID_SLIDES_FORMAT",
+      };
+    }
+    if (slides.size > SLIDES_CONFIG.maxSizeBytes) {
+      return {
+        ok: false,
+        error: SLIDES_CONFIG.oversizeMessage,
+        code: "SLIDES_TOO_LARGE",
+      };
+    }
   }
 
   return { ok: true, files: { audio, slides } };

@@ -64,46 +64,62 @@ export async function runProcessPipeline(
   // apiKey is guaranteed non-empty here.
   const pipeline = deps.createPipeline(deps.apiKey as string);
   const { audio, slides } = validation.files;
+  const hasAudio = audio !== null;
+  const hasSlides = slides !== null;
 
-  // 3. Transcription (Property 10: error -> 502, no synthesis).
-  let transcript: string;
-  try {
-    transcript = await pipeline.transcribe(audio);
-  } catch {
-    return {
-      status: 502,
-      body: {
-        error: "Transcription failed",
-        code: "TRANSCRIPTION_FAILED",
-      },
-    };
+  // 3. Transcription — only when audio is present. If audio is missing, the
+  // transcript is an empty string and the Whisper call is skipped entirely.
+  let transcript = "";
+  if (hasAudio) {
+    try {
+      transcript = await pipeline.transcribe(audio);
+    } catch {
+      return {
+        status: 502,
+        body: {
+          error: "Transcription failed",
+          code: "TRANSCRIPTION_FAILED",
+        },
+      };
+    }
   }
 
-  // 4. Extract slide material.
-  const extractSlides = deps.extractSlides ?? defaultExtractSlides;
-  let material: SlideMaterial;
-  try {
-    material = await extractSlides(slides);
-  } catch {
-    // Extraction failure routes through the synthesis-failed contract.
-    return {
-      status: 502,
-      body: { error: "Synthesis failed", code: "SYNTHESIS_FAILED" },
-    };
+  // 4. Extract slide material — only when a PDF is present. If it is missing,
+  // the slide content is empty and PDF extraction is skipped entirely.
+  let material: SlideMaterial = { text: "", pageImages: [] };
+  if (hasSlides) {
+    const extractSlides = deps.extractSlides ?? defaultExtractSlides;
+    try {
+      material = await extractSlides(slides);
+    } catch {
+      // Extraction failure routes through the synthesis-failed contract.
+      return {
+        status: 502,
+        body: { error: "Synthesis failed", code: "SYNTHESIS_FAILED" },
+      };
+    }
+
+    // A PDF was provided but produced nothing usable (no text and no images).
+    // Route through the synthesis-failed path so the client gets the defined
+    // error contract rather than an empty synthesis.
+    if (isSlideMaterialEmpty(material)) {
+      return {
+        status: 502,
+        body: { error: "Synthesis failed", code: "SYNTHESIS_FAILED" },
+      };
+    }
   }
 
-  // Unusable slide material (no text and no images) -> synthesis-failed path.
-  if (isSlideMaterialEmpty(material)) {
-    return {
-      status: 502,
-      body: { error: "Synthesis failed", code: "SYNTHESIS_FAILED" },
-    };
-  }
-
-  // 5. Synthesis (Property 10: error -> 502).
+  // 5. Synthesis (Property 10: error -> 502). The system prompt and user
+  // content are built dynamically from whichever inputs were provided.
   let studyGuide: string;
   try {
-    studyGuide = await pipeline.synthesize(transcript, material);
+    studyGuide = await pipeline.synthesize({
+      transcript,
+      slides: material,
+      hasAudio,
+      hasSlides,
+    });
   } catch {
     return {
       status: 502,

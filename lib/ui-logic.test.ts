@@ -16,7 +16,7 @@ const stateArb = fc.constantFrom(
 
 describe("isProcessButtonDisabled", () => {
   // Feature: ai-lecture-companion, Property 4: Process button disabled predicate
-  it("Property 4: disabled iff a file is missing or a stage is in flight", () => {
+  it("Property 4: disabled iff NEITHER file is selected or a stage is in flight", () => {
     fc.assert(
       fc.property(
         fc.boolean(),
@@ -27,7 +27,8 @@ describe("isProcessButtonDisabled", () => {
             state === ProcessingState.Uploading ||
             state === ProcessingState.TranscribingAudio ||
             state === ProcessingState.SynthesizingSlides;
-          const expected = !audioSelected || !slidesSelected || inFlight;
+          // Revised for either/or inputs: valid when at least one file present.
+          const expected = (!audioSelected && !slidesSelected) || inFlight;
 
           expect(
             isProcessButtonDisabled(audioSelected, slidesSelected, state),

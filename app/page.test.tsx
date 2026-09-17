@@ -28,7 +28,7 @@ describe("Dashboard initial render", () => {
     expect(screen.queryByTestId("study-guide-markdown")).not.toBeInTheDocument();
   });
 
-  it("disables the Process button until both files are selected (Requirement 5.2)", () => {
+  it("disables the Process button while neither file is selected", () => {
     render(<Dashboard />);
     expect(
       screen.getByRole("button", { name: "Process Lecture" }),
@@ -105,5 +105,66 @@ describe("submitLecture flow (Requirement 5.4, 5.5, 10.4-10.6)", () => {
     const state = finalStateFrom(actions);
     expect(state.processingState).toBe(ProcessingState.Error);
     expect(state.errorMessage).toBe(NETWORK_ERROR_MESSAGE);
+  });
+
+  it("audio-only submission: sends only audio, skips the synthesizing stage, reaches Complete", async () => {
+    const actions: ProcessingAction[] = [];
+    const dispatch = (a: ProcessingAction) => actions.push(a);
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ studyGuide: "# Audio Guide" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await submitLecture({
+      audioFile: makeFile("a.mp3"),
+      slidesFile: null,
+      dispatch,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    // Only the audio field is sent.
+    const body = fetchImpl.mock.calls[0][1].body as FormData;
+    expect(body.get("audio")).toBeInstanceOf(File);
+    expect(body.get("slides")).toBeNull();
+
+    // The synthesizing-stage advance is not dispatched (no PDF).
+    expect(actions.some((a) => a.type === "ADVANCE_TRANSCRIBING")).toBe(true);
+    expect(actions.some((a) => a.type === "ADVANCE_SYNTHESIZING")).toBe(false);
+
+    const state = finalStateFrom(actions);
+    expect(state.processingState).toBe(ProcessingState.Complete);
+    expect(state.studyGuide).toBe("# Audio Guide");
+  });
+
+  it("pdf-only submission: sends only slides, skips the transcribing stage, reaches Complete", async () => {
+    const actions: ProcessingAction[] = [];
+    const dispatch = (a: ProcessingAction) => actions.push(a);
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ studyGuide: "# PDF Guide" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await submitLecture({
+      audioFile: null,
+      slidesFile: makeFile("s.pdf"),
+      dispatch,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    const body = fetchImpl.mock.calls[0][1].body as FormData;
+    expect(body.get("slides")).toBeInstanceOf(File);
+    expect(body.get("audio")).toBeNull();
+
+    // The transcribing-stage advance is not dispatched (no audio).
+    expect(actions.some((a) => a.type === "ADVANCE_TRANSCRIBING")).toBe(false);
+    expect(actions.some((a) => a.type === "ADVANCE_SYNTHESIZING")).toBe(true);
+
+    const state = finalStateFrom(actions);
+    expect(state.processingState).toBe(ProcessingState.Complete);
+    expect(state.studyGuide).toBe("# PDF Guide");
   });
 });

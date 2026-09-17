@@ -85,7 +85,19 @@ export function processingReducer(
     }
 
     case "COMPLETE": {
-      if (canAdvance(state.processingState, ProcessingState.Complete)) {
+      // Because stages can be skipped dynamically (audio-only or pdf-only
+      // submissions bypass a stage), COMPLETE may arrive from any active
+      // in-flight stage, not just SynthesizingSlides. This still moves strictly
+      // forward in STATE_ORDER (never backward), preserving the forward-only
+      // guarantee; it just does not force every intermediate stage to be
+      // visited when there is no work for that stage.
+      const current = ordinal(state.processingState);
+      const target = ordinal(ProcessingState.Complete);
+      const isActiveStage =
+        state.processingState === ProcessingState.Uploading ||
+        state.processingState === ProcessingState.TranscribingAudio ||
+        state.processingState === ProcessingState.SynthesizingSlides;
+      if (isActiveStage && current >= 0 && target > current) {
         return {
           processingState: ProcessingState.Complete,
           studyGuide: action.studyGuide,

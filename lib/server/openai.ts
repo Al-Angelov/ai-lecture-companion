@@ -3,37 +3,51 @@
 // default implementation backed by the `openai` package.
 
 import OpenAI, { toFile } from "openai";
-import { FEYNMAN_SYSTEM_PROMPT, type SlideMaterial } from "@/lib/types";
+import { buildFeynmanSystemPrompt, type SlideMaterial } from "@/lib/types";
+
+export interface SynthesisInputs {
+  transcript: string;
+  slides: SlideMaterial;
+  hasAudio: boolean;
+  hasSlides: boolean;
+}
 
 export interface OpenAIPipeline {
   transcribe(audio: File): Promise<string>;
-  synthesize(transcript: string, slides: SlideMaterial): Promise<string>;
+  synthesize(inputs: SynthesisInputs): Promise<string>;
 }
 
 /**
- * Builds the user message content parts for synthesis: always the transcript
- * and slide text, plus any best-effort page images as image_url parts.
+ * Builds the user message content parts for synthesis. Only the channels that
+ * were actually provided are included, so an audio-only or pdf-only submission
+ * does not send empty placeholder sections.
  */
 export function buildSynthesisUserContent(
-  transcript: string,
-  slides: SlideMaterial,
+  inputs: SynthesisInputs,
 ): Array<
   | { type: "text"; text: string }
   | { type: "image_url"; image_url: { url: string } }
 > {
+  const { transcript, slides, hasAudio, hasSlides } = inputs;
+  const sections: string[] = [];
+  if (hasAudio) {
+    sections.push(`LECTURE TRANSCRIPT:\n${transcript}`);
+  }
+  if (hasSlides) {
+    sections.push(
+      `SLIDE DECK MATERIAL (text):\n${slides.text || "(no text extracted)"}`,
+    );
+  }
+
   const parts: Array<
     | { type: "text"; text: string }
     | { type: "image_url"; image_url: { url: string } }
-  > = [
-    {
-      type: "text",
-      text:
-        `LECTURE TRANSCRIPT:\n${transcript}\n\n` +
-        `SLIDE DECK MATERIAL (text):\n${slides.text || "(no text extracted)"}`,
-    },
-  ];
-  for (const image of slides.pageImages) {
-    parts.push({ type: "image_url", image_url: { url: image } });
+  > = [{ type: "text", text: sections.join("\n\n") }];
+
+  if (hasSlides) {
+    for (const image of slides.pageImages) {
+      parts.push({ type: "image_url", image_url: { url: image } });
+    }
   }
   return parts;
 }
@@ -58,17 +72,17 @@ export function createOpenAIPipeline(apiKey: string): OpenAIPipeline {
       return result.text;
     },
 
-    async synthesize(
-      transcript: string,
-      slides: SlideMaterial,
-    ): Promise<string> {
+    async synthesize(inputs: SynthesisInputs): Promise<string> {
       const completion = await client.chat.completions.create({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: FEYNMAN_SYSTEM_PROMPT },
+          {
+            role: "system",
+            content: buildFeynmanSystemPrompt(inputs.hasAudio, inputs.hasSlides),
+          },
           {
             role: "user",
-            content: buildSynthesisUserContent(transcript, slides),
+            content: buildSynthesisUserContent(inputs),
           },
         ],
       });

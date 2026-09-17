@@ -35,8 +35,9 @@ export function statusText(
 }
 
 /**
- * Process button disabled predicate (Requirements 5.2, 5.3 — Property 4):
- * disabled iff either file is unselected OR the processing state is one of the
+ * Process button disabled predicate (Property 4, revised for either/or inputs):
+ * a submission is valid when at least one file is selected, so the button is
+ * disabled iff NEITHER file is selected OR the processing state is one of the
  * active in-flight stages.
  */
 export function isProcessButtonDisabled(
@@ -48,7 +49,8 @@ export function isProcessButtonDisabled(
     state === ProcessingState.Uploading ||
     state === ProcessingState.TranscribingAudio ||
     state === ProcessingState.SynthesizingSlides;
-  return !audioSelected || !slidesSelected || inFlight;
+  const noFileSelected = !audioSelected && !slidesSelected;
+  return noFileSelected || inFlight;
 }
 
 /**

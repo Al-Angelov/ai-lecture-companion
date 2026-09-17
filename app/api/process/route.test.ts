@@ -78,8 +78,12 @@ describe("POST /api/process integration (mocked upstream)", () => {
     expect(body).toEqual({ studyGuide: "# Study Guide\n\nContent" });
     expect(transcribeMock).toHaveBeenCalledTimes(1);
     expect(synthesizeMock).toHaveBeenCalledTimes(1);
-    // Synthesis received the transcript.
-    expect(synthesizeMock.mock.calls[0][0]).toBe("the transcript");
+    // Synthesis received the transcript plus presence flags for both channels.
+    expect(synthesizeMock.mock.calls[0][0]).toMatchObject({
+      transcript: "the transcript",
+      hasAudio: true,
+      hasSlides: true,
+    });
   });
 
   it("transcription failure returns 502 TRANSCRIPTION_FAILED and stops the pipeline (Requirement 7.5)", async () => {
@@ -114,12 +118,38 @@ describe("POST /api/process integration (mocked upstream)", () => {
     expect(body).toMatchObject({ code: "SYNTHESIS_FAILED" });
   });
 
-  it("missing audio returns 400 without any upstream call (Requirement 7.2)", async () => {
+  it("pdf-only returns 200 and skips Whisper", async () => {
+    synthesizeMock.mockResolvedValue("# PDF-only Guide");
+
     const res = await POST(makeRequest({ slides: makeFile("deck.pdf") }));
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ studyGuide: "# PDF-only Guide" });
+    // Audio missing => Whisper is never called.
+    expect(transcribeMock).not.toHaveBeenCalled();
+    expect(synthesizeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("audio-only returns 200 and transcribes", async () => {
+    transcribeMock.mockResolvedValue("the transcript");
+    synthesizeMock.mockResolvedValue("# Audio-only Guide");
+
+    const res = await POST(makeRequest({ audio: makeFile("lecture.mp3") }));
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ studyGuide: "# Audio-only Guide" });
+    expect(transcribeMock).toHaveBeenCalledTimes(1);
+    expect(synthesizeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("both files missing returns 400 MISSING_FILES without any upstream call (failsafe)", async () => {
+    const res = await POST(makeRequest({}));
 
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body).toMatchObject({ code: "MISSING_AUDIO" });
+    expect(body).toMatchObject({ code: "MISSING_FILES" });
     expect(transcribeMock).not.toHaveBeenCalled();
     expect(synthesizeMock).not.toHaveBeenCalled();
   });

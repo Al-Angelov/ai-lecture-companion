@@ -50,7 +50,8 @@ export default function Dashboard() {
   }, []);
 
   const handleProcess = useCallback(() => {
-    if (!audioFile || !slidesFile) return;
+    // A submission is valid when at least one file is present.
+    if (!audioFile && !slidesFile) return;
     setSelectionError(null);
     void submitLecture({ audioFile, slidesFile, dispatch });
   }, [audioFile, slidesFile]);

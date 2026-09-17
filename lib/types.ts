@@ -109,6 +109,7 @@ export interface ProcessErrorResponse {
 export type ProcessErrorCode =
   | "MISSING_AUDIO"
   | "MISSING_SLIDES"
+  | "MISSING_FILES" // neither audio nor slides provided
   | "INVALID_AUDIO_FORMAT"
   | "INVALID_SLIDES_FORMAT"
   | "AUDIO_TOO_LARGE"
@@ -126,5 +127,35 @@ export interface SlideMaterial {
   pageImages: string[]; // base64/data-URL page renders (empty if none)
 }
 
-export const FEYNMAN_SYSTEM_PROMPT =
-  "Act as an expert private tutor. You will receive a lecture transcript and the corresponding slide deck material. Synthesize this material into a dummy-proof study guide using the Feynman technique. Format your output strictly in Markdown with these sections: 1. Core Concept in Plain English. 2. Step-by-Step Formula Breakdown (with real-world numbers/units if applicable). 3. Real-World Analogy & Practical Example. 4. Slide Cross-Reference & Key Takeaways.";
+// Dynamic Feynman system prompt template. `{provided_materials}` is swapped at
+// request time for a phrase describing the file(s) actually uploaded.
+export const FEYNMAN_SYSTEM_PROMPT_TEMPLATE =
+  "Act as an expert private tutor. You are receiving {provided_materials}. Synthesize this material into a dummy-proof study guide using the Feynman technique. Format your output strictly in Markdown with these sections: 1. Core Concept in Plain English. 2. Step-by-Step Breakdown (with real-world numbers/units if applicable). 3. Real-World Analogy & Practical Example. 4. Source Cross-Reference & Key Takeaways.";
+
+// Phrases substituted for {provided_materials} based on which inputs are present.
+export const PROVIDED_MATERIALS = {
+  audioOnly: "a lecture transcript",
+  slidesOnly: "a slide deck",
+  both: "a lecture transcript and the corresponding slide deck",
+} as const;
+
+/**
+ * Resolves the phrase describing the provided materials, then substitutes it
+ * into the template to produce the final system prompt. Requires at least one
+ * input to be present (guaranteed by request validation).
+ */
+export function buildFeynmanSystemPrompt(
+  hasAudio: boolean,
+  hasSlides: boolean,
+): string {
+  const materials =
+    hasAudio && hasSlides
+      ? PROVIDED_MATERIALS.both
+      : hasAudio
+        ? PROVIDED_MATERIALS.audioOnly
+        : PROVIDED_MATERIALS.slidesOnly;
+  return FEYNMAN_SYSTEM_PROMPT_TEMPLATE.replace(
+    "{provided_materials}",
+    materials,
+  );
+}

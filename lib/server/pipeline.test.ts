@@ -1,9 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import fc from "fast-check";
 import { runProcessPipeline, type PipelineDeps } from "./pipeline";
-import { buildSynthesisUserContent } from "./openai";
+import { buildSynthesisUserContent, type SynthesisInputs } from "./openai";
 import type { OpenAIPipeline } from "./openai";
-import { FEYNMAN_SYSTEM_PROMPT, type SlideMaterial } from "@/lib/types";
+import {
+  FEYNMAN_SYSTEM_PROMPT_TEMPLATE,
+  buildFeynmanSystemPrompt,
+  type SlideMaterial,
+} from "@/lib/types";
 
 const NUM_RUNS = 100;
 const VALID_KEY = "sk-test-valid-key";
@@ -55,41 +59,47 @@ function depsWith(
 // ---------------------------------------------------------------------------
 describe("Process_API request validation", () => {
   // Feature: ai-lecture-companion, Property 7: Missing-file requests are rejected before any upstream call
-  it("Property 7: absent/invalid fields => 4xx and no upstream calls", async () => {
+  // Revised for either/or inputs: a request is rejected only when EVERY provided
+  // field is absent or invalid (a single valid file is now sufficient). This
+  // property drives all-invalid combinations and asserts a 4xx with no upstream
+  // contact.
+  it("Property 7: all-absent/all-invalid requests => 4xx and no upstream calls", async () => {
+    // A single field is either absent, a non-file string, wrong-extension, or
+    // oversize — i.e. never usable.
     const badFieldArb = fc.oneof(
-      fc.constant<null>(null), // absent
-      fc.constant<string>("not-a-file"), // wrong type (string field)
-      fc.record({ kind: fc.constant("wrongExt"), name: fc.constant("f.txt") }),
-      fc.record({
-        kind: fc.constant("oversize"),
-        name: fc.constant("f.mp3"),
-      }),
+      fc.constant<{ kind: "absent" }>({ kind: "absent" }),
+      fc.constant<{ kind: "string" }>({ kind: "string" }),
+      fc.constant<{ kind: "wrongExt" }>({ kind: "wrongExt" }),
+      fc.constant<{ kind: "oversize" }>({ kind: "oversize" }),
     );
+
+    function build(
+      bad: { kind: string },
+      field: "audio" | "slides",
+    ): File | string | null {
+      const validName = field === "audio" ? "f.mp3" : "f.pdf";
+      switch (bad.kind) {
+        case "absent":
+          return null;
+        case "string":
+          return "not-a-file";
+        case "wrongExt":
+          return makeFile("f.txt", 10);
+        case "oversize":
+          return makeFile(validName, 600_000_000);
+        default:
+          return null;
+      }
+    }
 
     await fc.assert(
       fc.asyncProperty(
-        fc.record({ audioBad: fc.boolean(), spec: badFieldArb }),
-        async ({ audioBad, spec }) => {
+        badFieldArb,
+        badFieldArb,
+        async (audioBad, slidesBad) => {
           const spy = makeSpyPipeline();
-
-          function build(bad: typeof spec, field: "audio" | "slides") {
-            if (bad === null) return null;
-            if (typeof bad === "string") return bad;
-            if (bad.kind === "wrongExt") return makeFile(bad.name, 10);
-            // oversize
-            return makeFile(
-              field === "audio" ? "f.mp3" : "f.pdf",
-              600_000_000,
-            );
-          }
-
-          // Ensure at least one field is invalid; keep the other valid.
-          const audio = audioBad
-            ? build(spec, "audio")
-            : makeFile("good.mp3", 10);
-          const slides = audioBad
-            ? makeFile("good.pdf", 10)
-            : build(spec, "slides");
+          const audio = build(audioBad, "audio");
+          const slides = build(slidesBad, "slides");
 
           const fd = makeFormData({ audio, slides });
           const result = await runProcessPipeline(fd, depsWith(VALID_KEY, spy));
@@ -102,6 +112,16 @@ describe("Process_API request validation", () => {
       ),
       { numRuns: NUM_RUNS },
     );
+  });
+
+  it("returns 400 MISSING_FILES when both files are absent, with no upstream calls", async () => {
+    const spy = makeSpyPipeline();
+    const fd = makeFormData({});
+    const result = await runProcessPipeline(fd, depsWith(VALID_KEY, spy));
+    expect(result.status).toBe(400);
+    expect(result.body).toMatchObject({ code: "MISSING_FILES" });
+    expect(spy.transcribe).not.toHaveBeenCalled();
+    expect(spy.synthesize).not.toHaveBeenCalled();
   });
 });
 
@@ -193,62 +213,86 @@ describe("Process_API stage-error mapping", () => {
 // Property 11
 // ---------------------------------------------------------------------------
 describe("Synthesis request content", () => {
-  // Feature: ai-lecture-companion, Property 11: Synthesis request always contains the verbatim Feynman prompt and both inputs
-  it("Property 11: synthesize receives the exact prompt (system) and both inputs", async () => {
+  // Feature: ai-lecture-companion, Property 11: Synthesis request always contains the verbatim Feynman prompt and the provided inputs
+  // Revised for either/or inputs: for whichever combination of files is
+  // present, the synthesis request must (a) resolve the dynamic system prompt
+  // from the exact template and (b) include exactly the provided inputs in the
+  // user content (and omit absent ones).
+  it("Property 11: synthesize receives the dynamic prompt and exactly the provided inputs", async () => {
+    // At least one of audio/slides must be present.
+    const presenceArb = fc
+      .record({ hasAudio: fc.boolean(), hasSlides: fc.boolean() })
+      .filter((p) => p.hasAudio || p.hasSlides);
+
     await fc.assert(
       fc.asyncProperty(
+        presenceArb,
         fc.string(),
         fc.string(),
         fc.array(fc.constant("data:image/png;base64,AAA"), { maxLength: 3 }),
-        async (transcript, slideText, images) => {
-          let capturedTranscript = "";
-          let capturedSlides: SlideMaterial | null = null;
+        async ({ hasAudio, hasSlides }, transcript, slideText, images) => {
+          let captured: SynthesisInputs | null = null;
 
           const spy = makeSpyPipeline({
             transcribe: async () => transcript,
-            synthesize: async (t, s) => {
-              capturedTranscript = t;
-              capturedSlides = s;
+            synthesize: async (inputs) => {
+              captured = inputs;
               return "guide";
             },
           });
 
-          const material: SlideMaterial = {
-            text: slideText,
-            pageImages: images,
-          };
           const fd = makeFormData({
-            audio: makeFile("good.mp3", 10),
-            slides: makeFile("good.pdf", 10),
+            audio: hasAudio ? makeFile("good.mp3", 10) : null,
+            slides: hasSlides ? makeFile("good.pdf", 10) : null,
           });
 
-          // Force non-empty material so synthesis is always reached.
+          // Force non-empty slide material so a present PDF always reaches
+          // synthesis rather than the empty-material error path.
           const deps = depsWith(VALID_KEY, spy, async () => ({
-            text: material.text.trim().length > 0 ? material.text : "fallback",
-            pageImages: material.pageImages,
+            text: slideText.trim().length > 0 ? slideText : "fallback",
+            pageImages: images,
           }));
 
           const result = await runProcessPipeline(fd, deps);
           expect(result.status).toBe(200);
+          expect(captured).not.toBeNull();
+          const inputs = captured as unknown as SynthesisInputs;
 
-          // Both inputs were passed to synthesize.
-          expect(capturedTranscript).toBe(transcript);
-          expect(capturedSlides).not.toBeNull();
+          // Presence flags reflect the actually-provided files.
+          expect(inputs.hasAudio).toBe(hasAudio);
+          expect(inputs.hasSlides).toBe(hasSlides);
+          // Transcript is the Whisper output when audio present, else empty.
+          expect(inputs.transcript).toBe(hasAudio ? transcript : "");
 
-          // The user content includes the transcript and the slide material,
-          // and the system prompt is the exact Feynman string.
-          const content = buildSynthesisUserContent(
-            capturedTranscript,
-            capturedSlides as unknown as SlideMaterial,
+          // System prompt resolves from the exact template for this combo.
+          const systemPrompt = buildFeynmanSystemPrompt(hasAudio, hasSlides);
+          expect(systemPrompt).toBe(
+            FEYNMAN_SYSTEM_PROMPT_TEMPLATE.replace(
+              "{provided_materials}",
+              hasAudio && hasSlides
+                ? "a lecture transcript and the corresponding slide deck"
+                : hasAudio
+                  ? "a lecture transcript"
+                  : "a slide deck",
+            ),
           );
+
+          // User content includes provided channels and omits absent ones.
+          const content = buildSynthesisUserContent(inputs);
           const textPart = content.find((p) => p.type === "text") as {
             type: "text";
             text: string;
           };
-          expect(textPart.text).toContain(capturedTranscript);
-          expect(FEYNMAN_SYSTEM_PROMPT).toBe(
-            "Act as an expert private tutor. You will receive a lecture transcript and the corresponding slide deck material. Synthesize this material into a dummy-proof study guide using the Feynman technique. Format your output strictly in Markdown with these sections: 1. Core Concept in Plain English. 2. Step-by-Step Formula Breakdown (with real-world numbers/units if applicable). 3. Real-World Analogy & Practical Example. 4. Slide Cross-Reference & Key Takeaways.",
-          );
+          if (hasAudio) {
+            expect(textPart.text).toContain("LECTURE TRANSCRIPT:");
+          } else {
+            expect(textPart.text).not.toContain("LECTURE TRANSCRIPT:");
+          }
+          if (hasSlides) {
+            expect(textPart.text).toContain("SLIDE DECK MATERIAL");
+          } else {
+            expect(textPart.text).not.toContain("SLIDE DECK MATERIAL");
+          }
         },
       ),
       { numRuns: NUM_RUNS },
@@ -287,7 +331,7 @@ describe("Credential exclusion", () => {
 
         const fd =
           scenario === "validation"
-            ? makeFormData({ audio: null, slides: makeFile("good.pdf", 10) })
+            ? makeFormData({}) // both missing => 400 validation branch
             : makeFormData({
                 audio: makeFile("good.mp3", 10),
                 slides: makeFile("good.pdf", 10),
@@ -384,5 +428,52 @@ describe("Process_API pipeline behavior", () => {
     }));
     const result = await runProcessPipeline(fd, deps);
     expect(result.status).toBe(200);
+  });
+
+  it("audio-only: transcribes, skips PDF extraction, and synthesizes", async () => {
+    let extractCalled = false;
+    const spy = makeSpyPipeline({
+      transcribe: async () => "the transcript",
+      synthesize: async () => "# Guide",
+    });
+    const deps = depsWith(VALID_KEY, spy, async () => {
+      extractCalled = true;
+      return { text: "should not be used", pageImages: [] };
+    });
+    const fd = makeFormData({ audio: makeFile("lecture.mp3", 10) });
+
+    const result = await runProcessPipeline(fd, deps);
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ studyGuide: "# Guide" });
+    expect(spy.transcribe).toHaveBeenCalledTimes(1);
+    expect(spy.synthesize).toHaveBeenCalledTimes(1);
+    // PDF extraction is skipped entirely when no slides file is present.
+    expect(extractCalled).toBe(false);
+    // Synthesis is told there is no slides channel and an empty slide material.
+    const inputs = spy.synthesize.mock.calls[0][0] as SynthesisInputs;
+    expect(inputs.hasAudio).toBe(true);
+    expect(inputs.hasSlides).toBe(false);
+    expect(inputs.slides).toEqual({ text: "", pageImages: [] });
+  });
+
+  it("pdf-only: skips Whisper (empty transcript), extracts, and synthesizes", async () => {
+    const spy = makeSpyPipeline({
+      synthesize: async () => "# Guide",
+    });
+    const deps = depsWith(VALID_KEY, spy, async () => ({
+      text: "slide text",
+      pageImages: [],
+    }));
+    const fd = makeFormData({ slides: makeFile("deck.pdf", 10) });
+
+    const result = await runProcessPipeline(fd, deps);
+    expect(result.status).toBe(200);
+    // Whisper is never called when no audio file is present.
+    expect(spy.transcribe).not.toHaveBeenCalled();
+    expect(spy.synthesize).toHaveBeenCalledTimes(1);
+    const inputs = spy.synthesize.mock.calls[0][0] as SynthesisInputs;
+    expect(inputs.hasAudio).toBe(false);
+    expect(inputs.hasSlides).toBe(true);
+    expect(inputs.transcript).toBe("");
   });
 });
