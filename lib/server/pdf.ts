@@ -72,17 +72,38 @@ export function isSlideMaterialEmpty(material: SlideMaterial): boolean {
 /**
  * Default text extractor backed by pdfjs-dist. Imported lazily so test
  * environments that inject their own extractor never load the library.
+ *
+ * Runs fully workerless: in a Node serverless environment (e.g. Vercel/Lambda)
+ * pdfjs must not try to spin up an external worker `.mjs` file, which is not
+ * present in the bundled `.next/server/chunks` output and causes
+ * "Setting up fake worker failed: Cannot find module .../pdf.worker.mjs".
+ * We extract text on the main thread instead, which needs no worker.
  */
 async function defaultExtractText(data: Uint8Array): Promise<string[]> {
   // Use the legacy build which is Node-friendly (no DOM APIs required for text).
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const loadingTask = pdfjs.getDocument({
-    data,
-    // Disable worker for server-side text extraction.
-    useWorkerFetch: false,
+
+  // Run fully on the main thread — no external worker module to resolve in the
+  // serverless bundle. `disableWorker` is the robust way to do this but is not
+  // part of pdfjs's public DocumentInitParameters TS type, so we widen the
+  // params object locally rather than casting away all safety.
+  const params: Record<string, unknown> = {
+    // pdfjs expects a fresh Uint8Array view over the buffer.
+    data: new Uint8Array(data),
+    disableWorker: true,
+    // Text-only extraction on the server: no fonts, no eval, no worker fetch,
+    // no offscreen canvas — keeps it self-contained and bundle-safe.
+    disableFontFace: true,
     isEvalSupported: false,
+    useWorkerFetch: false,
+    isOffscreenCanvasSupported: false,
     useSystemFonts: true,
-  });
+  };
+
+  const loadingTask = pdfjs.getDocument(
+    params as Parameters<typeof pdfjs.getDocument>[0],
+  );
+
   const doc = await loadingTask.promise;
   const pages: string[] = [];
   for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
