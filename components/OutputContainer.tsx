@@ -1,6 +1,8 @@
 "use client";
 
 import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import { outputMode } from "@/lib/ui-logic";
 
 interface OutputContainerProps {
@@ -29,7 +31,12 @@ export function OutputContainer({ studyGuide }: OutputContainerProps) {
           data-testid="study-guide-markdown"
           className="prose prose-sm max-w-none dark:prose-invert prose-headings:font-semibold"
         >
-          <ReactMarkdown>{studyGuide}</ReactMarkdown>
+          <ReactMarkdown
+            remarkPlugins={[remarkMath]}
+            rehypePlugins={[rehypeKatex]}
+          >
+            {studyGuide}
+          </ReactMarkdown>
         </div>
       ) : (
         <div className="flex flex-col gap-2">

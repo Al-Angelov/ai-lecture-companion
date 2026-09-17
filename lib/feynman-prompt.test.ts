@@ -10,11 +10,38 @@ import {
 // {provided_materials} placeholder must resolve to the correct phrase for each
 // combination of inputs.
 describe("FEYNMAN_SYSTEM_PROMPT_TEMPLATE", () => {
-  it("matches the exact dynamic template string", () => {
-    const expected =
-      "Act as an expert private tutor. You are receiving {provided_materials}. Synthesize this material into a dummy-proof study guide using the Feynman technique. Format your output strictly in Markdown with these sections: 1. Core Concept in Plain English. 2. Step-by-Step Breakdown (with real-world numbers/units if applicable). 3. Real-World Analogy & Practical Example. 4. Source Cross-Reference & Key Takeaways.";
+  it("uses the world-class-tutor persona and keeps the {provided_materials} placeholder", () => {
+    expect(FEYNMAN_SYSTEM_PROMPT_TEMPLATE).toContain(
+      "You are a world-class tutor",
+    );
+    expect(FEYNMAN_SYSTEM_PROMPT_TEMPLATE).toContain(
+      "You are receiving {provided_materials}.",
+    );
+  });
 
-    expect(FEYNMAN_SYSTEM_PROMPT_TEMPLATE).toBe(expected);
+  it("encodes the strict teaching & formatting rules", () => {
+    expect(FEYNMAN_SYSTEM_PROMPT_TEMPLATE).toContain("TARGET AUDIENCE");
+    expect(FEYNMAN_SYSTEM_PROMPT_TEMPLATE).toContain("DUMMY-PROOF MATH");
+    expect(FEYNMAN_SYSTEM_PROMPT_TEMPLATE).toContain("MATH FORMATTING");
+    expect(FEYNMAN_SYSTEM_PROMPT_TEMPLATE).toContain("VISUAL STRUCTURE");
+    // LaTeX delimiters are mandated so the KaTeX renderer has math to format.
+    expect(FEYNMAN_SYSTEM_PROMPT_TEMPLATE).toContain("$...$");
+    expect(FEYNMAN_SYSTEM_PROMPT_TEMPLATE).toContain("$$...$$");
+  });
+
+  it("mandates the strict Markdown section headers", () => {
+    expect(FEYNMAN_SYSTEM_PROMPT_TEMPLATE).toContain(
+      "# 🎯 Core Concepts Explained Simply",
+    );
+    expect(FEYNMAN_SYSTEM_PROMPT_TEMPLATE).toContain(
+      "# 📐 Step-by-Step Mathematical Foundations",
+    );
+    expect(FEYNMAN_SYSTEM_PROMPT_TEMPLATE).toContain(
+      "# 📝 Realistic Exam Question & Full Solution",
+    );
+    expect(FEYNMAN_SYSTEM_PROMPT_TEMPLATE).toContain(
+      "# 💡 Key Takeaways & Slide Cross-References",
+    );
   });
 });
 

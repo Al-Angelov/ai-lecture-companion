@@ -63,3 +63,34 @@ describe("OutputContainer Markdown element coverage (Requirement 9.2)", () => {
     expect(container.querySelector("pre")).toBeInTheDocument();
   });
 });
+
+describe("OutputContainer KaTeX math rendering", () => {
+  it("renders inline math ($...$) as KaTeX markup (not visible $-delimited text)", () => {
+    const { container } = render(
+      <OutputContainer studyGuide={"The relation is $E = mc^2$ exactly."} />,
+    );
+    // rehype-katex emits a `.katex` element with the rendered math.
+    expect(container.querySelector(".katex")).toBeInTheDocument();
+    // The visible math (KaTeX HTML layer) must not still show the `$` delimiters
+    // as literal characters.
+    const visible = container.querySelector(".katex-html");
+    expect(visible?.textContent ?? "").not.toContain("$");
+  });
+
+  it("renders display math ($$...$$) as KaTeX markup", () => {
+    // Display math needs to be its own block for remark-math to treat it as a
+    // display equation.
+    const { container } = render(
+      <OutputContainer
+        studyGuide={"Here:\n\n$$\\int_0^1 x^2 \\, dx = \\frac{1}{3}$$\n\nDone."}
+      />,
+    );
+    // Math rendered by KaTeX (the source LaTeX lives only in a hidden MathML
+    // annotation for accessibility, which is expected — not a visible artifact).
+    const katex = container.querySelector(".katex");
+    expect(katex).toBeInTheDocument();
+    expect(katex?.querySelector("annotation")?.textContent).toContain(
+      "\\int_0^1",
+    );
+  });
+});
