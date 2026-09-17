@@ -20,7 +20,7 @@ vi.mock("@/lib/server/openai", () => ({
 }));
 
 // Mock PDF extraction so a fake .pdf byte blob yields usable slide material
-// without invoking pdfjs-dist.
+// without invoking the real unpdf extractor.
 vi.mock("@/lib/server/pdf", () => ({
   extractSlideMaterial: vi.fn(async () => ({
     text: "slide text",

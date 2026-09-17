@@ -57,10 +57,10 @@ describe("extractSlideMaterial", () => {
 });
 
 // A minimal, valid single-page PDF that shows the text "Hello". Built inline so
-// the real pdfjs-dist code path (the default extractor) can be exercised end to
-// end without a fixture file. Byte offsets in the xref are approximate; pdfjs is
-// tolerant and recovers via its cross-reference rebuild, which is exactly the
-// Node/serverless path we need to verify runs workerless.
+// the real extractor (unpdf) can be exercised end to end without a fixture
+// file. Byte offsets in the xref are approximate; the parser is tolerant and
+// recovers via its cross-reference rebuild, which is exactly the Node/serverless
+// path we need to verify runs workerless.
 const MINIMAL_PDF = `%PDF-1.4
 1 0 obj
 << /Type /Catalog /Pages 2 0 R >>
@@ -84,14 +84,14 @@ trailer
 << /Root 1 0 R >>
 %%EOF`;
 
-describe("extractSlideMaterial with the real (workerless) pdfjs extractor", () => {
+describe("extractSlideMaterial with the real (workerless) unpdf extractor", () => {
   it("extracts text from a real PDF without a fake-worker / missing-module error", async () => {
     const bytes = new Uint8Array(Buffer.from(MINIMAL_PDF, "latin1"));
 
-    // No injected extractText => exercises defaultExtractText (pdfjs-dist).
-    // The key assertion is that this resolves at all: prior to the workerless
-    // fix this rejected with 'Setting up fake worker failed: Cannot find
-    // module .../pdf.worker.mjs'.
+    // No injected extractText => exercises defaultExtractText (unpdf). The key
+    // assertion is that this resolves at all: pdfjs-dist previously rejected
+    // with 'Setting up fake worker failed: Cannot find module
+    // .../pdf.worker.mjs' in the serverless bundle. unpdf is worker-free.
     const material = await extractSlideMaterial(bytes);
 
     expect(typeof material.text).toBe("string");

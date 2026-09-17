@@ -1,10 +1,12 @@
 // PDF slide extraction (Requirement 8.1). Produces SlideMaterial with a
 // guaranteed text channel and a best-effort image channel.
 //
-// Text extraction uses pdfjs-dist's per-page text content, which runs in
-// Node without a native canvas. Image rendering requires a canvas backend that
-// is not guaranteed in every deployment target, so images are best-effort and
-// capped; text is always the guaranteed input to synthesis.
+// Text extraction uses `unpdf`, a serverless-friendly wrapper around a
+// worker-free pdfjs build. This avoids the "Setting up fake worker failed:
+// Cannot find module .../pdf.worker.mjs" error that pdfjs-dist produced in the
+// Vercel/Lambda bundle. Image rendering requires a canvas backend that is not
+// guaranteed in every deployment target, so images are best-effort and capped;
+// text is always the guaranteed input to synthesis.
 
 import type { SlideMaterial } from "@/lib/types";
 
@@ -70,49 +72,21 @@ export function isSlideMaterialEmpty(material: SlideMaterial): boolean {
 }
 
 /**
- * Default text extractor backed by pdfjs-dist. Imported lazily so test
+ * Default text extractor backed by `unpdf`. Imported lazily so test
  * environments that inject their own extractor never load the library.
  *
- * Runs fully workerless: in a Node serverless environment (e.g. Vercel/Lambda)
- * pdfjs must not try to spin up an external worker `.mjs` file, which is not
- * present in the bundled `.next/server/chunks` output and causes
- * "Setting up fake worker failed: Cannot find module .../pdf.worker.mjs".
- * We extract text on the main thread instead, which needs no worker.
+ * `unpdf` runs a worker-free pdfjs build, so there is no external `.mjs` worker
+ * module to resolve in the serverless bundle. We request per-page text
+ * (`mergePages: false`) so `extractSlideMaterial` can label each slide.
  */
 async function defaultExtractText(data: Uint8Array): Promise<string[]> {
-  // Use the legacy build which is Node-friendly (no DOM APIs required for text).
-  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const { getDocumentProxy, extractText } = await import("unpdf");
 
-  // Run fully on the main thread — no external worker module to resolve in the
-  // serverless bundle. `disableWorker` is the robust way to do this but is not
-  // part of pdfjs's public DocumentInitParameters TS type, so we widen the
-  // params object locally rather than casting away all safety.
-  const params: Record<string, unknown> = {
-    // pdfjs expects a fresh Uint8Array view over the buffer.
-    data: new Uint8Array(data),
-    disableWorker: true,
-    // Text-only extraction on the server: no fonts, no eval, no worker fetch,
-    // no offscreen canvas — keeps it self-contained and bundle-safe.
-    disableFontFace: true,
-    isEvalSupported: false,
-    useWorkerFetch: false,
-    isOffscreenCanvasSupported: false,
-    useSystemFonts: true,
-  };
+  // Load the document from the in-memory bytes (fresh Uint8Array view).
+  const pdf = await getDocumentProxy(new Uint8Array(data));
 
-  const loadingTask = pdfjs.getDocument(
-    params as Parameters<typeof pdfjs.getDocument>[0],
-  );
+  // Per-page text: with mergePages false, `text` is a string[] (one per page).
+  const { text } = await extractText(pdf, { mergePages: false });
 
-  const doc = await loadingTask.promise;
-  const pages: string[] = [];
-  for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
-    const page = await doc.getPage(pageNum);
-    const content = await page.getTextContent();
-    const strings = content.items
-      .map((item) => ("str" in item ? item.str : ""))
-      .filter((s) => s.length > 0);
-    pages.push(strings.join(" "));
-  }
-  return pages;
+  return Array.isArray(text) ? text : [text];
 }
