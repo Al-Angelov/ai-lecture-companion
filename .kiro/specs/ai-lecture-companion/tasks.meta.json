@@ -1,0 +1,299 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Scaffold the Next.js project and tooling": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673543743
+      }
+    ],
+    "2.1 Create the shared types/config module (e.g., `lib/types.ts`)": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673544479
+      }
+    ],
+    "2.2 Write a guard test for the verbatim Feynman prompt": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673545185
+      }
+    ],
+    "3.1 Implement the pure file validator (e.g., `lib/validation.ts`)": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673545623
+      }
+    ],
+    "3.2 Write property test for file validation": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673546018
+      }
+    ],
+    "3.3 Write property test for selection preservation/replacement": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673546373
+      }
+    ],
+    "3.4 Write property test for multi-file drop policy": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673546722
+      }
+    ],
+    "3.5 Write edge-case tests for validation boundaries": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673547108
+      }
+    ],
+    "4.1 Implement the forward-only processing reducer (e.g., `lib/reducer.ts`)": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673547377
+      }
+    ],
+    "4.2 Write property test for forward-only transitions": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673547705
+      }
+    ],
+    "4.3 Write property test for the Error-transition invariant": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673548077
+      }
+    ],
+    "5. Checkpoint - core logic": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673548497
+      }
+    ],
+    "6.1 Implement Header and ThemeController": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673549002
+      }
+    ],
+    "6.2 Write example tests for Header and ThemeController": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673549388
+      }
+    ],
+    "6.3 Implement the reusable DropZone component": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673549822
+      }
+    ],
+    "6.4 Write example tests for DropZone": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673550403
+      }
+    ],
+    "6.5 Implement the Process Button": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673550829
+      }
+    ],
+    "6.6 Write property test for the button disabled predicate": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673551194
+      }
+    ],
+    "6.7 Implement the StatusIndicator": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673551541
+      }
+    ],
+    "6.8 Write property test for status text totality": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673551914
+      }
+    ],
+    "6.9 Implement the OutputContainer": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673552345
+      }
+    ],
+    "6.10 Write property test for the output rendering decision": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673552706
+      }
+    ],
+    "6.11 Write example tests for OutputContainer Markdown coverage": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673553028
+      }
+    ],
+    "7. Checkpoint - components": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673553375
+      }
+    ],
+    "8.1 Build the Dashboard layout and compose components (`app/page.tsx`)": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673553797
+      }
+    ],
+    "8.2 Implement the submission flow": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673554325
+      }
+    ],
+    "8.3 Write example tests for dashboard wiring": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673554713
+      }
+    ],
+    "9. Checkpoint - client complete": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673555861
+      }
+    ],
+    "10.1 Implement request parsing and validation (`app/api/process/route.ts`)": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673556210
+      }
+    ],
+    "10.2 Write property test for pre-upstream rejection of invalid requests": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673556479
+      }
+    ],
+    "10.3 Implement the credential guard": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673556734
+      }
+    ],
+    "10.4 Write property test for the credential guard": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673556984
+      }
+    ],
+    "10.5 Implement Whisper transcription": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673557202
+      }
+    ],
+    "10.6 Implement PDF slide extraction": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673557420
+      }
+    ],
+    "10.7 Write edge-case tests for slide extraction": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673557590
+      }
+    ],
+    "10.8 Implement gpt-4o synthesis": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673557757
+      }
+    ],
+    "10.9 Write property test for stage-error mapping": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673558027
+      }
+    ],
+    "10.10 Write property test for verbatim prompt and inputs": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673558301
+      }
+    ],
+    "10.11 Write property test for credential exclusion": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673558570
+      }
+    ],
+    "11.1 Write integration tests (mocked upstream)": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673559044
+      }
+    ],
+    "11.2 Final wiring and cleanup": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673559434
+      }
+    ],
+    "12. Final checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "82e2ef75-c1dd-4f4d-8cb6-7b12eab8cd29",
+        "chatSessionId": "sess_25db4ed7-ec6f-4ce7-a9c0-80883c51b65d",
+        "timestamp": 1789673559843
+      }
+    ]
+  }
+}
